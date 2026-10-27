@@ -1,0 +1,32 @@
+[
+    {
+        "command": "C:\\Users\\gmaxi\\.platformio\\packages\\toolchain-gccarmnoneeabi\\bin\\arm-none-eabi-gcc.exe -mthumb -mcpu=cortex-m4 -x assembler-with-cpp -DPLATFORMIO=60200 -DSTM32F4 -DSTM32F401xE -DSTM32F40_41xxx -DF_CPU=84000000L -IC:\\Users\\gmaxi\\.platformio\\packages\\framework-cmsis\\CMSIS\\Include -IC:\\Users\\gmaxi\\.platformio\\packages\\framework-cmsis-stm32f4\\Include -c -o .pio\\build\\micromaus\\FrameworkCMSIS\\gcc\\startup_stm32f401xe.o C:\\Users\\gmaxi\\.platformio\\packages\\framework-cmsis-stm32f4\\Source\\Templates\\gcc\\startup_stm32f401xe.S",
+        "directory": "C:\\Users\\gmaxi\\Documents\\MCI\\Embedded\\Micromaus",
+        "file": "C:\\Users\\gmaxi\\.platformio\\packages\\framework-cmsis-stm32f4\\Source\\Templates\\gcc\\startup_stm32f401xe.S",
+        "output": ".pio\\build\\micromaus\\FrameworkCMSIS\\gcc\\startup_stm32f401xe.o"
+    },
+    {
+        "command": "C:\\Users\\gmaxi\\.platformio\\packages\\toolchain-gccarmnoneeabi\\bin\\arm-none-eabi-gcc.exe -o .pio\\build\\micromaus\\FrameworkCMSIS\\system_stm32f4xx.o -c -Os -ffunction-sections -fdata-sections -Wall -mthumb -mcpu=cortex-m4 -DPLATFORMIO=60200 -DSTM32F4 -DSTM32F401xE -DSTM32F40_41xxx -DF_CPU=84000000L -IC:\\Users\\gmaxi\\.platformio\\packages\\framework-cmsis\\CMSIS\\Include -IC:\\Users\\gmaxi\\.platformio\\packages\\framework-cmsis-stm32f4\\Include C:\\Users\\gmaxi\\.platformio\\packages\\framework-cmsis-stm32f4\\Source\\Templates\\system_stm32f4xx.c",
+        "directory": "C:\\Users\\gmaxi\\Documents\\MCI\\Embedded\\Micromaus",
+        "file": "C:\\Users\\gmaxi\\.platformio\\packages\\framework-cmsis-stm32f4\\Source\\Templates\\system_stm32f4xx.c",
+        "output": ".pio\\build\\micromaus\\FrameworkCMSIS\\system_stm32f4xx.o"
+    },
+    {
+        "command": "C:\\Users\\gmaxi\\.platformio\\packages\\toolchain-gccarmnoneeabi\\bin\\arm-none-eabi-gcc.exe -o .pio\\build\\micromaus\\src\\main.o -c -Os -ffunction-sections -fdata-sections -Wall -mthumb -mcpu=cortex-m4 -DPLATFORMIO=60200 -DSTM32F4 -DSTM32F401xE -DSTM32F40_41xxx -DF_CPU=84000000L -Isrc -IC:\\Users\\gmaxi\\.platformio\\packages\\framework-cmsis\\CMSIS\\Include -IC:\\Users\\gmaxi\\.platformio\\packages\\framework-cmsis-stm32f4\\Include src\\main.c",
+        "directory": "C:\\Users\\gmaxi\\Documents\\MCI\\Embedded\\Micromaus",
+        "file": "src\\main.c",
+        "output": ".pio\\build\\micromaus\\src\\main.o"
+    },
+    {
+        "command": "C:\\Users\\gmaxi\\.platformio\\packages\\toolchain-gccarmnoneeabi\\bin\\arm-none-eabi-gcc.exe -o .pio\\build\\micromaus\\src\\platform_stm32f401.o -c -Os -ffunction-sections -fdata-sections -Wall -mthumb -mcpu=cortex-m4 -DPLATFORMIO=60200 -DSTM32F4 -DSTM32F401xE -DSTM32F40_41xxx -DF_CPU=84000000L -Isrc -IC:\\Users\\gmaxi\\.platformio\\packages\\framework-cmsis\\CMSIS\\Include -IC:\\Users\\gmaxi\\.platformio\\packages\\framework-cmsis-stm32f4\\Include src\\platform_stm32f401.c",
+        "directory": "C:\\Users\\gmaxi\\Documents\\MCI\\Embedded\\Micromaus",
+        "file": "src\\platform_stm32f401.c",
+        "output": ".pio\\build\\micromaus\\src\\platform_stm32f401.o"
+    },
+    {
+        "command": "C:\\Users\\gmaxi\\.platformio\\packages\\toolchain-gccarmnoneeabi\\bin\\arm-none-eabi-gcc.exe -o .pio\\build\\micromaus\\src\\vl53l0x.o -c -Os -ffunction-sections -fdata-sections -Wall -mthumb -mcpu=cortex-m4 -DPLATFORMIO=60200 -DSTM32F4 -DSTM32F401xE -DSTM32F40_41xxx -DF_CPU=84000000L -Isrc -IC:\\Users\\gmaxi\\.platformio\\packages\\framework-cmsis\\CMSIS\\Include -IC:\\Users\\gmaxi\\.platformio\\packages\\framework-cmsis-stm32f4\\Include src\\vl53l0x.c",
+        "directory": "C:\\Users\\gmaxi\\Documents\\MCI\\Embedded\\Micromaus",
+        "file": "src\\vl53l0x.c",
+        "output": ".pio\\build\\micromaus\\src\\vl53l0x.o"
+    }
+]
