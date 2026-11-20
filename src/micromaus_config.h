@@ -9,7 +9,7 @@
 /* JGB37-3525, Variante 960 RPM: Getriebe ca. 1:4,4 (aus Leerlaufdrehzahl geschaetzt).
  * Nur fuer die Feldfrequenz relevant; mit dem Testmodus kalibrieren:
  * GETRIEBE_NEU = GETRIEBE_ALT * Soll / Ist. */
-#define GETRIEBE_UNTERSETZUNG_X10  44
+#define GETRIEBE_UNTERSETZUNG_X10  250
 #define POLPAARE                   3   /* am Motor geprueft */
 
 #define RAMPE_ABTRIEB_RPM_PRO_S    120 /* Beschleunigung und Bremsen am Rad */
