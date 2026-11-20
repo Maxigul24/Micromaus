@@ -7,44 +7,54 @@
 #include "vl53l0x.h"
 #include "platform.h"
 
-#define ADDR        0x29
+#define DEFAULT_ADDR 0x29
 #define TIMEOUT_MS  100
 
-static bool    ok;         /* false sobald ein I2C-Zugriff scheitert */
-static uint8_t stop_var;
+static bool ok;             /* false sobald ein I2C-Zugriff scheitert */
 
-static void wr(uint8_t reg, uint8_t val)
+static void wr(vl53l0x_t *sensor, uint8_t reg, uint8_t val)
 {
     uint8_t b[2] = { reg, val };
-    if (!i2c_write(ADDR, b, 2)) ok = false;
+    if (!i2c_write(sensor->address, b, 2)) ok = false;
 }
 
-static uint8_t rd(uint8_t reg)
+static uint8_t rd(vl53l0x_t *sensor, uint8_t reg)
 {
     uint8_t v = 0;
-    if (!i2c_read(ADDR, reg, &v, 1)) ok = false;
+    if (!i2c_read(sensor->address, reg, &v, 1)) ok = false;
     return v;
 }
 
 /* Wartet bis (reg & mask) != 0 */
-static bool wait_set(uint8_t reg, uint8_t mask)
+static bool wait_set(vl53l0x_t *sensor, uint8_t reg, uint8_t mask)
 {
     uint32_t t = millis();
-    while (!(rd(reg) & mask))
+    while (!(rd(sensor, reg) & mask))
         if (!ok || millis() - t > TIMEOUT_MS) return false;
     return true;
 }
 
 /* Zugriff auf versteckte Register ein-/ausschalten */
-static void hidden_open(void)  { wr(0x80, 0x01); wr(0xFF, 0x01); wr(0x00, 0x00); }
-static void hidden_close(void) { wr(0x00, 0x01); wr(0xFF, 0x00); wr(0x80, 0x00); }
-
-static bool calibrate(uint8_t vhv)
+static void hidden_open(vl53l0x_t *sensor)
 {
-    wr(0x00, 0x01 | vhv);
-    if (!wait_set(0x13, 0x07)) return false;
-    wr(0x0B, 0x01);
-    wr(0x00, 0x00);
+    wr(sensor, 0x80, 0x01);
+    wr(sensor, 0xFF, 0x01);
+    wr(sensor, 0x00, 0x00);
+}
+
+static void hidden_close(vl53l0x_t *sensor)
+{
+    wr(sensor, 0x00, 0x01);
+    wr(sensor, 0xFF, 0x00);
+    wr(sensor, 0x80, 0x00);
+}
+
+static bool calibrate(vl53l0x_t *sensor, uint8_t vhv)
+{
+    wr(sensor, 0x00, 0x01 | vhv);
+    if (!wait_set(sensor, 0x13, 0x07)) return false;
+    wr(sensor, 0x0B, 0x01);
+    wr(sensor, 0x00, 0x00);
     return ok;
 }
 
@@ -69,30 +79,34 @@ static const uint8_t tuning[][2] =
     {0xFF,0x01}, {0x8E,0x01}, {0x00,0x01}, {0xFF,0x00}, {0x80,0x00},
 };
 
-bool vl53l0x_init(void)
+bool vl53l0x_init(vl53l0x_t *sensor, uint8_t address)
 {
-    ok = true;
-    if (rd(0xC0) != 0xEE) return false;          /* Model-ID pruefen */
+    if (sensor == 0 || address < 0x08 || address > 0x77) return false;
 
-    wr(0x89, rd(0x89) | 0x01);                   /* I/O 2V8-Modus */
-    wr(0x88, 0x00);                              /* Standard-I2C */
+    sensor->address = DEFAULT_ADDR;
+    sensor->stop_var = 0;
+    ok = true;
+    if (rd(sensor, 0xC0) != 0xEE) return false;  /* Model-ID pruefen */
+
+    wr(sensor, 0x89, rd(sensor, 0x89) | 0x01);   /* I/O 2V8-Modus */
+    wr(sensor, 0x88, 0x00);                      /* Standard-I2C */
 
     /* stop_variable + Referenz-SPAD-Info aus dem NVM lesen */
-    hidden_open();
-    stop_var = rd(0x91);
-    wr(0xFF, 0x06); wr(0x83, rd(0x83) | 0x04);
-    wr(0xFF, 0x07); wr(0x81, 0x01); wr(0x80, 0x01); wr(0x94, 0x6B); wr(0x83, 0x00);
-    if (!wait_set(0x83, 0xFF)) return false;
-    wr(0x83, 0x01);
-    uint8_t info = rd(0x92);                     /* Bit7: Aperture, Bit0-6: Anzahl */
-    wr(0x81, 0x00); wr(0xFF, 0x06); wr(0x83, rd(0x83) & ~0x04);
-    wr(0xFF, 0x01);
-    hidden_close();
+    hidden_open(sensor);
+    sensor->stop_var = rd(sensor, 0x91);
+    wr(sensor, 0xFF, 0x06); wr(sensor, 0x83, rd(sensor, 0x83) | 0x04);
+    wr(sensor, 0xFF, 0x07); wr(sensor, 0x81, 0x01); wr(sensor, 0x80, 0x01); wr(sensor, 0x94, 0x6B); wr(sensor, 0x83, 0x00);
+    if (!wait_set(sensor, 0x83, 0xFF)) return false;
+    wr(sensor, 0x83, 0x01);
+    uint8_t info = rd(sensor, 0x92);             /* Bit7: Aperture, Bit0-6: Anzahl */
+    wr(sensor, 0x81, 0x00); wr(sensor, 0xFF, 0x06); wr(sensor, 0x83, rd(sensor, 0x83) & ~0x04);
+    wr(sensor, 0xFF, 0x01);
+    hidden_close(sensor);
 
     /* Nur die ersten 'count' SPADs (ab 'first') aktiv lassen */
     uint8_t map[7] = { 0xB0 };                   /* map[0] = Registeradresse */
-    if (!i2c_read(ADDR, 0xB0, &map[1], 6)) return false;
-    wr(0xFF, 0x01); wr(0x4F, 0x00); wr(0x4E, 0x2C); wr(0xFF, 0x00); wr(0xB6, 0xB4);
+    if (!i2c_read(sensor->address, 0xB0, &map[1], 6)) return false;
+    wr(sensor, 0xFF, 0x01); wr(sensor, 0x4F, 0x00); wr(sensor, 0x4E, 0x2C); wr(sensor, 0xFF, 0x00); wr(sensor, 0xB6, 0xB4);
 
     uint8_t count = info & 0x7F;
     uint8_t first = (info & 0x80) ? 12 : 0;
@@ -104,35 +118,48 @@ bool vl53l0x_init(void)
         if (i < first || n == count) *byte &= (uint8_t)~bit;
         else if (*byte & bit)        n++;
     }
-    if (!i2c_write(ADDR, map, 7)) return false;
+    if (!i2c_write(sensor->address, map, 7)) return false;
 
     for (uint32_t i = 0; i < sizeof(tuning) / 2; i++)
-        wr(tuning[i][0], tuning[i][1]);
+        wr(sensor, tuning[i][0], tuning[i][1]);
 
-    wr(0x0A, 0x04);                              /* Status "Messung fertig" in 0x13 */
-    wr(0x0B, 0x01);
+    wr(sensor, 0x0A, 0x04);                      /* Status "Messung fertig" in 0x13 */
+    wr(sensor, 0x0B, 0x01);
 
-    wr(0x01, 0x01); if (!calibrate(0x40)) return false;   /* VHV   */
-    wr(0x01, 0x02); if (!calibrate(0x00)) return false;   /* Phase */
-    wr(0x01, 0xE8);                              /* normale Mess-Sequenz */
+    wr(sensor, 0x01, 0x01); if (!calibrate(sensor, 0x40)) return false; /* VHV */
+    wr(sensor, 0x01, 0x02); if (!calibrate(sensor, 0x00)) return false; /* Phase */
+    wr(sensor, 0x01, 0xE8);                      /* normale Mess-Sequenz */
+    if (!ok) return false;
+
+    wr(sensor, 0x8A, address);                   /* neue 7-Bit-I2C-Adresse */
+    if (!ok) return false;
+    sensor->address = address;
+    return true;
+}
+
+bool vl53l0x_start(vl53l0x_t *sensor)
+{
+    if (sensor == 0) return false;
+    ok = true;
+    hidden_open(sensor);
+    wr(sensor, 0x91, sensor->stop_var);
+    hidden_close(sensor);
+    wr(sensor, 0x00, 0x01);                      /* Einzelmessung starten */
     return ok;
 }
 
-bool vl53l0x_read_mm(uint16_t *mm)
+bool vl53l0x_read_if_ready(vl53l0x_t *sensor, uint16_t *mm, bool *ready)
 {
+    if (sensor == 0 || mm == 0 || ready == 0) return false;
+    *ready = false;
     ok = true;
-    hidden_open();
-    wr(0x91, stop_var);
-    hidden_close();
-
-    wr(0x00, 0x01);                              /* Einzelmessung starten */
-    if (!wait_set(0x13, 0x07)) return false;     /* warten bis fertig */
+    if (!(rd(sensor, 0x13) & 0x07)) return ok;
 
     uint8_t b[2];
-    if (!i2c_read(ADDR, 0x1E, b, 2)) return false;
+    if (!i2c_read(sensor->address, 0x1E, b, 2)) return false;
     *mm = (uint16_t)(b[0] << 8 | b[1]);
 
-    wr(0x0B, 0x01);                              /* Status loeschen */
+    wr(sensor, 0x0B, 0x01);                      /* Status loeschen */
+    *ready = ok;
     return ok;
 }
-

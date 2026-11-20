@@ -5,9 +5,17 @@
 #include <stdbool.h>
 #include <stdint.h>
 
+typedef enum {
+    TOF_SENSOR_LEFT,
+    TOF_SENSOR_FRONT,
+    TOF_SENSOR_RIGHT,
+    TOF_SENSOR_COUNT
+} tof_sensor_id_t;
+
 void     platform_init(void);
 uint32_t millis(void);
 void     delay_ms(uint32_t ms);
+void     tof_xshut_set(tof_sensor_id_t sensor, bool enabled);
 
 /* I2C Zugriff */
 bool i2c_write(uint8_t addr, const uint8_t *data, uint8_t len);

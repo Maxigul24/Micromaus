@@ -70,10 +70,12 @@ void motor_init(void)
     for (int m = 0; m < 2; m++) {
         TIM_TypeDef *t = timer[m];
         t->ARR   = PWM_MAX - 1;
-        t->CCMR1 = (6U << 4) | (6U << 12);   /* CH1 + CH2: PWM-Modus */
-        t->CCMR2 = (6U << 4);                /* CH3: PWM-Modus */
+        t->CCMR1 = (6U << 4) | (1U << 3) | (6U << 12) | (1U << 11);
+        t->CCMR2 = (6U << 4) | (1U << 3);
         t->CCER  = TIM_CCER_CC1E | TIM_CCER_CC2E | TIM_CCER_CC3E;
-        t->CR1   = TIM_CR1_CEN;              /* Timer starten */
+        t->CR1   = TIM_CR1_ARPE;
+        t->EGR   = TIM_EGR_UG;
+        t->CR1  |= TIM_CR1_CEN;
 
         for (int ph = 0; ph < 3; ph++) {
             pin_af(pwm_pin[m][ph], timer_af[m]);

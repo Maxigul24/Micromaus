@@ -242,11 +242,33 @@ void platform_init(void)
     }
     i2c_stop();
 
-    /* Sensor-Reset Sequenz: 10ms LOW, dann XSHUT HIGH */
+    /* Sensoren im Reset halten; main weist ihnen danach einzeln I2C-Adressen zu. */
     delay_ms(10);
-    /* PC2 (TOF_XSHUT_L, Stecker P2) und PC0/PC1 freigeben */
-    GPIOC->BSRR = (1U << 0) | (1U << 1) | (1U << 2);
-    delay_ms(15);
+}
+
+void tof_xshut_set(tof_sensor_id_t sensor, bool enabled)
+{
+    uint32_t pin;
+
+    switch (sensor) {
+    case TOF_SENSOR_LEFT:
+        pin = 2;
+        break;
+    case TOF_SENSOR_FRONT:
+        pin = 0;
+        break;
+    case TOF_SENSOR_RIGHT:
+        pin = 1;
+        break;
+    default:
+        return;
+    }
+
+    if (enabled) {
+        GPIOC->BSRR = (1U << pin);
+    } else {
+        GPIOC->BSRR = (1U << (pin + 16));
+    }
 }
 
 void pc13_set(bool high)
@@ -287,4 +309,3 @@ void uart_print_int(int32_t n)
         uart_print_number((uint32_t)n);
     }
 }
-
