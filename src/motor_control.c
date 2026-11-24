@@ -20,6 +20,7 @@
 #define KOMMUTIERUNG_CYCLES        (SYSTEMTAKT_HZ / 20000U)
 #define MESSINTERVALL_MS           500U
 #define BLOCKIER_MIN_RPM           20 /* darunter ist die Messung zu grob */
+#define BLOCKIER_FENSTER           2U /* so viele Messungen in Folge zu langsam -> Stopp */
 
 typedef struct {
     motor_id_t motor;
@@ -33,6 +34,8 @@ typedef struct {
     uint8_t feedback_enabled;
     uint32_t last_commutation;
     uint32_t last_control_ms;
+    int32_t window_start_target;     /* Soll-RPM zu Beginn des Messfensters */
+    uint8_t block_count;             /* Messungen in Folge unter der Schwelle */
     motor_control_status_t status;
 } motor_control_t;
 
@@ -53,6 +56,8 @@ static void init_one(motor_control_t *control, motor_id_t motor,
     control->feedback_enabled = closed_loop;
     control->last_commutation = cycles;
     control->last_control_ms = 0;
+    control->window_start_target = 0;
+    control->block_count = 0;
     control->status.target_rpm = 0;
     control->status.measured_rpm = 0;
     control->status.error_rpm = 0;
@@ -109,9 +114,15 @@ static void update_one(motor_control_t *control, int32_t ticks,
             control->angle_microdeg += 360000000;
         }
 
-        motor_set(control->motor,
-                  (uint16_t)(control->angle_microdeg / 1000000),
-                  (uint16_t)control->strength);
+        if (control->setpoint_rpm == 0 && ramp == 0) {
+            /* Stillstand: Treiber aus, kein Strom (Rad frei drehbar).
+             * motor_set() schaltet beim Anfahren die EN-Pins wieder ein. */
+            motor_off(control->motor);
+        } else {
+            motor_set(control->motor,
+                      (uint16_t)(control->angle_microdeg / 1000000),
+                      (uint16_t)control->strength);
+        }
         control->previous_field_rpm = field_rpm;
         control->last_commutation = cycles;
         control->status.target_rpm = control->ramp_millirpm / 1000;
@@ -128,6 +139,10 @@ static void update_one(motor_control_t *control, int32_t ticks,
     }
     int32_t target_abs = control->status.target_rpm < 0 ?
                          -control->status.target_rpm : control->status.target_rpm;
+    int32_t start_abs = control->window_start_target < 0 ?
+                        -control->window_start_target : control->window_start_target;
+    /* Mittlerer Sollwert im Messfenster: waehrend der Rampe hinkt die Messung sonst nach. */
+    int32_t expected_rpm = (target_abs + start_abs) / 2;
     int32_t measured_rpm =
         (int32_t)((delta_ticks * 60000) /
                   ((int64_t)ENCODER_COUNTS_PER_REV * dt_ms));
@@ -136,17 +151,24 @@ static void update_one(motor_control_t *control, int32_t ticks,
     control->status.feedback_ready = true;
     control->last_ticks = ticks;
     control->last_control_ms = now;
+    control->window_start_target = control->status.target_rpm;
 
     /* Unter 1/3 des Sollwerts: Rotor ist aus dem Takt oder blockiert. Mehr Spannung
      * faengt ihn bei voller Feldfrequenz nicht wieder ein, also Feld stoppen.
-     * 1/3 statt 1/2, weil die Messung waehrend der Rampe nachhinkt. */
-    if (control->feedback_enabled && target_abs >= BLOCKIER_MIN_RPM &&
-        measured_rpm * 3 < target_abs) {
-        control->status.blocked = true;
-        control->setpoint_rpm = 0;
-        control->ramp_millirpm = 0;
-        control->previous_field_rpm = 0;
-        control->status.target_rpm = 0;
+     * Erst nach BLOCKIER_FENSTER Messungen in Folge, damit ein Ausreisser nicht stoppt. */
+    if (control->feedback_enabled && expected_rpm >= BLOCKIER_MIN_RPM &&
+        measured_rpm * 3 < expected_rpm) {
+        if (++control->block_count >= BLOCKIER_FENSTER) {
+            control->status.blocked = true;
+            control->setpoint_rpm = 0;
+            control->ramp_millirpm = 0;
+            control->previous_field_rpm = 0;
+            control->status.target_rpm = 0;
+            control->window_start_target = 0;
+            control->block_count = 0;
+        }
+    } else {
+        control->block_count = 0;
     }
 }
 

@@ -10,12 +10,19 @@
 
 #define FAHRMODUS_TEST             0U
 #define FAHRMODUS_FLOODFILL        1U
-#define FAHRMODUS                  FAHRMODUS_TEST /* hier umschalten und neu flashen */
+#define FAHRMODUS_TOF_TEST         2U
+#define FAHRMODUS                  FAHRMODUS_TOF_TEST /* hier umschalten und neu flashen */
+
+/* ToF-Test: Abstand links (mm) steuert Drehzahl von MOTOR_2. */
+#define TOF_STOP_MM                40U
+#define TOF_MAX_MM                 200U
+#define TOF_MIN_RPM                20
+#define TOF_MAX_RPM                200
 
 /* 0: Open Loop, feste Amplitude, Encoder nur Anzeige.
  * 1: Closed Loop, Amplitude nach Drehzahl + Blockier-Erkennung (braucht zaehlende Encoder). */
-#define CLOSED_LOOP_ENABLED        0U
-#define TEST_RPM                   90    /* ~280 mm/s am Rad */
+#define CLOSED_LOOP_ENABLED        1U
+#define TEST_RPM                   200    /* ~377 mm/s am Rad */
 #define TEST_FAHRZEIT_MS           4000U /* inkl. Beschleunigen */
 #define TEST_ZYKLUS_MS             7000U /* Fahrzeit + Bremsen + Pause */
 #define DIAGNOSEINTERVALL_MS       1000U
@@ -26,7 +33,9 @@
 void TIM5_IRQHandler(void)
 {
     TIM5->SR = ~TIM_SR_UIF;
-    motor_control_update(encoder_left_get_ticks(), encoder_right_get_ticks(),
+    /* Encoder gekreuzt: per Debugger gemessen dreht MOTOR_2 (DRV2) das Rad mit dem
+     * Encoder AL/BL (PA15/PB3). Deshalb bekommt jede Regelung den Encoder ihres Rades. */
+    motor_control_update(encoder_right_get_ticks(), encoder_left_get_ticks(),
                          millis(), DWT->CYCCNT);
 }
 
@@ -84,7 +93,40 @@ static void testmodus_update(uint32_t elapsed_ms)
     if (zyklus % 2U) {
         rpm = -rpm;
     }
-    motor_control_set_speed(MOTOR_1, rpm);
+    motor_control_set_speed(MOTOR_2, rpm);
+}
+
+/* Abstand am linken und vorderen ToF-Sensor steuert Drehzahl:
+ * der kleinere der beiden Abstaende zaehlt (nah = langsam/Stopp, fern = schnell). */
+static void tof_test_update(void)
+{
+    distance_reading_t left, front;
+    bool have_left = distance_sensors_get(DISTANCE_SENSOR_LEFT, &left) &&
+                     left.initialized && left.valid;
+    bool have_front = distance_sensors_get(DISTANCE_SENSOR_FRONT, &front) &&
+                      front.initialized && front.valid;
+    int32_t rpm = 0;
+
+    if (have_left || have_front) {
+        uint16_t dist_mm;
+        if (have_left && have_front) {
+            dist_mm = left.distance_mm < front.distance_mm ?
+                      left.distance_mm : front.distance_mm;
+        } else {
+            dist_mm = have_left ? left.distance_mm : front.distance_mm;
+        }
+
+        if (dist_mm >= TOF_MAX_MM) {
+            rpm = TOF_MAX_RPM;
+        } else if (dist_mm > TOF_STOP_MM) {
+            uint32_t span_mm = TOF_MAX_MM - TOF_STOP_MM;
+            uint32_t dist = dist_mm - TOF_STOP_MM;
+            rpm = TOF_MIN_RPM +
+                  (int32_t)(dist * (uint32_t)(TOF_MAX_RPM - TOF_MIN_RPM) / span_mm);
+        }
+    }
+
+    motor_control_set_speed(MOTOR_1, 0);
     motor_control_set_speed(MOTOR_2, rpm);
 }
 
@@ -107,7 +149,7 @@ int main(void)
     uint32_t cycles = DWT->CYCCNT;
     int32_t left_ticks = encoder_left_get_ticks();
     int32_t right_ticks = encoder_right_get_ticks();
-    motor_control_start(left_ticks, right_ticks, start, cycles);
+    motor_control_start(right_ticks, left_ticks, start, cycles);
     kommutierung_timer_start();
     uint32_t last_diagnostic_ms = start;
 
@@ -126,7 +168,9 @@ int main(void)
     uart_print_number(POLPAARE);
     uart_print("\r\nLinks: Encoder AL=PA15, BL=PB3; Motor 1 vorwaerts.\r\n");
     uart_print("Rechts: Encoder AR=PB7, BR=PB6; Motor 2 rueckwaerts.\r\n");
-    uart_print(FAHRMODUS == FAHRMODUS_TEST ? "Modus: Test\r\n" : "Modus: Floodfill\r\n");
+    uart_print(FAHRMODUS == FAHRMODUS_TEST ? "Modus: Test\r\n" :
+               FAHRMODUS == FAHRMODUS_TOF_TEST ? "Modus: ToF-Test (links+vorne)\r\n" :
+                                                 "Modus: Floodfill\r\n");
 
     pc13_set(true);
     if (FAHRMODUS == FAHRMODUS_FLOODFILL) {
@@ -136,6 +180,8 @@ int main(void)
         uint32_t now = millis();
         if (FAHRMODUS == FAHRMODUS_TEST) {
             testmodus_update(now - start);
+        } else if (FAHRMODUS == FAHRMODUS_TOF_TEST) {
+            tof_test_update();
         }
         left_ticks = encoder_left_get_ticks();
         right_ticks = encoder_right_get_ticks();
